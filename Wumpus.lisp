@@ -1,0 +1,78 @@
+(defparameter *worm-num* 10)
+(defparameter *edge-num* 1000)
+(defparameter *node-num* 1000)
+
+(defun neighbors (node edge-alist)
+  (mapcar #'first (rest (assoc node edge-alist))))
+
+(defun within-one (a b edge-alist)
+  (member b (neighbors a edge-alist)))
+
+(defun within-two (a b edge-alist)
+  (or (within-one a b edge-alist)
+      (some (lambda(x)
+              (within-one x b edge-alist))
+            (neighbors a edge-alist))))
+
+(defun make-city-nodes (edge-alist)
+  (let ((wumpus (random-node))
+        (glow-worms (loop for i below *worm-num*
+                       collect (random-node))))
+    (loop for n from 1 to *node-num*
+       collect (append (list n)
+                       (cond ((eql n wumpus) '(wumpus))
+                             ((within-two n wumpus edge-alist) '(blood!)))
+                       (cond ((member n glow-worms)
+                              '(glow-worm))
+                             ((some (lambda (worm)
+                                      (within-one n worm edge-alist))
+                                    glow-worms)
+                              '(lights!)))
+                       (when (some #'rest (rest (assoc n edge-alist)))
+                         '(sirens!))))))
+
+(defun get-connected (node edge-list)
+  (let ((visited nil))
+    (labels ((traverse (node)
+               (unless (member node visited)
+                 (push node visited)
+                 (mapc (lambda (edge)
+                         (traverse (rest edge)))
+                       (direct-edges node edge-list)))))
+      (traverse node))
+    visited))
+
+(defun direct-edges (node edge-list)
+  (remove-if-not (lambda (x)
+                   (eql (first x) node))
+                 edge-list))
+
+(defun make-edge-list ()
+  (apply #'append (loop repeat *edge-num*
+                     collect (edge-pair (random-node) (random-node)))))
+
+(defun edge-pair (a b)
+  (unless (eql a b)
+    (list (cons a b) (cons b a))))
+
+(defun random-node ()
+  (1+ (random *node-num*)))
+
+(defun hash-edges (edge-list)
+  (let ((tab (make-hash-table :size (length edge-list))))
+    (mapc (lambda (x)
+            (let ((node (first x)))
+              (push (rest x) (gethash node tab))))
+          edge-list)
+    tab))
+
+(defun get-connected-hash (node edge-tab)
+  (let ((visited (make-hash-table)))
+    (labels ((traverse (node)
+               (unless (gethash node visited)
+                 (setf (gethash node visited) t)
+                 (mapc (lambda (edge)
+                         (traverse edge))
+                       (gethash node edge-tab)))))
+      (traverse node))
+    visited))
